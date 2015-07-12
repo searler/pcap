@@ -5,7 +5,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.io.SynchronousFileSource
 import pcap.codec.Codecs.Wrapper
-import pcap.data.Data.Data
+import pcap.data.Data
 
 
 /**
