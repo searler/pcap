@@ -10,7 +10,7 @@ package object v4 {
     def sourceIp: ip.v4.Address
     def destinationIp: ip.v4.Address
 
-    def key: StreamKey = if (PortOrdering.lt(sourcePort, destinationPort))
+    def stream: StreamKey = if (PortOrdering.lt(sourcePort, destinationPort))
       Key(sourcePort, destinationPort, sourceIp, destinationIp)
     else
       Key(destinationPort, sourcePort, destinationIp, sourceIp)

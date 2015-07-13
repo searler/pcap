@@ -13,7 +13,7 @@ package object v6 {
   trait Packet extends Data {
     def sourceIp: ip.v6.Address
     def destinationIp: ip.v6.Address
-    def key: StreamKey = if (PortOrdering.lt(sourcePort, destinationPort))
+    def stream: StreamKey = if (PortOrdering.lt(sourcePort, destinationPort))
       Key(sourcePort, destinationPort, sourceIp, destinationIp)
     else
       Key(destinationPort, sourcePort, destinationIp, sourceIp)

@@ -21,8 +21,9 @@ package object data {
     def bytes: ByteVector
     def sourcePort: ip.Port
     def destinationPort: ip.Port
+    def stream: StreamKey
   }
-
+  
   trait Sequenced {
     def sequence: Long
   }
