@@ -115,7 +115,7 @@ T+SCFIAQAVYAKAAAAQEICgpZcIwKWXCM""").get.toByteBuffer)
   private def extract[K](f: pcap.data.v6.TCP => K)(implicit materializer: Materializer,
                                                    execution: ExecutionContext) =
     Source.single(bytes)
-      .transform(() => DecoderStage(new WithHeaderDecoder))
+      .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
       .collect { case data: pcap.data.v6.TCP => data }
       .groupBy(f)
       .map {
