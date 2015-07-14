@@ -12,6 +12,9 @@ import scala.collection.immutable.Seq
 import akka.stream.io.SynchronousFileSource
 import java.io.File
 import akka.stream.scaladsl.Sink
+import akka.stream.Materializer
+import scala.concurrent.ExecutionContext
+import scodec.protocols.ip.Port
 
 /**
  * @author rsearle
@@ -53,29 +56,71 @@ AAAAAScPr4dP5IITHq5ToYARAVYAKAAAAQEICgpZcIwKWXCMf+CiVasyBwBWAAAAVgAAAAAAAAAA
 AAAAAAAAAIbdYAAAAAAgBkAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAa+HJw8erlOh
 T+SCFIAQAVYAKAAAAQEICgpZcIwKWXCM""").get.toByteBuffer)
 
-  "stream" should "extract all text in each direction" in {
+  "extract all text in each direction" should "nested onComplete merged" in {
     implicit val system = ActorSystem("Sys")
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
 
-    val f = Source.single(bytes)
-      .transform(() => DecoderStage(new WithHeaderDecoder))
-      .filter(_ match {
-        case data: pcap.data.v6.TCP => true
-        case _                      => false
-      })
-      .map { _.asInstanceOf[pcap.data.v6.TCP] }
-      .groupBy(_.stream)
-      .map {
-        case (key, s) => (key, s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes })
-      }
-      .map { r => r._2.map { bv => (r._1, bv.decodeUtf8.fold(_.toString, _.toString)) } }
+    extractMerged
       .runWith(Sink.head)
       .onComplete(t1 => t1.get.onComplete { v =>
         v.get._2 should be("hello\nthere\none\ntwo\nend\ndone\n")
         system.shutdown()
-      }) 
+      })
 
     system.awaitTermination()
   }
+
+  it should "using mapAsync merged" in {
+    implicit val system = ActorSystem("Sys")
+    import system.dispatcher
+    implicit val materializer = ActorMaterializer()
+
+    extractMerged
+      .mapAsyncUnordered(1)(identity)
+      .runWith(Sink.head)
+      .onComplete { t =>
+        t.get._2 should be("hello\nthere\none\ntwo\nend\ndone\n")
+        system.shutdown
+      }
+
+    system.awaitTermination()
+  }
+
+  it should "using mapAsync separate" in {
+    implicit val system = ActorSystem("Sys")
+    import system.dispatcher
+    implicit val materializer = ActorMaterializer()
+
+    extractSeperate
+      .mapAsyncUnordered(1)(identity)
+      .runWith(Sink.fold(List[(Port, String)]())((l, v) => l :+ v))
+      .onComplete { t =>
+        system.shutdown
+        val value = (t.get).sortBy { _._1.value }
+        value should be(List(
+          (Port(9999), "there\ntwo\ndone\n"),
+          (Port(44935), "hello\none\nend\n")))
+      }
+
+    system.awaitTermination()
+  }
+
+  private def extractMerged(implicit materializer: Materializer,
+                            execution: ExecutionContext) = extract(_.stream)
+
+  private def extractSeperate(implicit materializer: Materializer,
+                              execution: ExecutionContext) = extract(_.sourcePort)
+
+  private def extract[K](f: pcap.data.v6.TCP => K)(implicit materializer: Materializer,
+                                                   execution: ExecutionContext) =
+    Source.single(bytes)
+      .transform(() => DecoderStage(new WithHeaderDecoder))
+      .collect { case data: pcap.data.v6.TCP => data }
+      .groupBy(f)
+      .map {
+        case (key, s) => (key, s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes })
+      }
+      .map { r => r._2.map { bv => (r._1, bv.decodeUtf8.fold(_.toString, identity)) } }
+
 }
