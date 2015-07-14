@@ -1,12 +1,9 @@
 package pcap.codec
 
 import org.joda.time.DateTime
-
 import pcap._
-
 import scodec.Decoder
 import scodec.bits.ByteOrdering
-
 import scodec.codecs.bits
 import scodec.codecs.provide
 import scodec.protocols.ip.Protocols
@@ -18,6 +15,9 @@ import scodec.protocols.pcap.EtherType
 import scodec.protocols.pcap.EthernetFrameHeader
 import scodec.protocols.pcap.GlobalHeader
 import scodec.protocols.pcap.RecordHeader
+import scodec.bits.BitVector
+import scodec.Attempt
+import scodec.DecodeResult
 
 /**
  * @author rsearle
@@ -92,9 +92,9 @@ object Codecs {
     p <- frameDecode(rh)
   } yield p
 
-  class Wrapper extends Function0[Decoder[data.Content]] {
+  class WithHeaderDecoder extends Decoder[data.Content] {
     private var ordering: Option[ByteOrdering] = None
-    def apply() = {
+    override def decode(buffer: BitVector): Attempt[DecodeResult[data.Content]] = {
       ordering match {
         case None => for {
           gh <- GlobalHeader.codec
@@ -104,7 +104,7 @@ object Codecs {
         }
         case Some(order) => recordDecode(order)
       }
-    }
+    }.decode(buffer)
   }
 
 }
