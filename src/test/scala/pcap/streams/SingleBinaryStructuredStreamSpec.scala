@@ -17,6 +17,9 @@ import scala.concurrent.ExecutionContext
 import scodec.protocols.ip.Port
 import scodec.codecs._
 import scodec.Decoder
+import akka.stream.scaladsl.FlattenStrategy
+import pcap.data.StreamKey
+import scodec.bits._
 
 /**
  * @author rsearle
@@ -49,13 +52,14 @@ AAAAGdEtczmQsRyDnZEIAEUAACh420AAgAZVRQoKDDIKCgxq84NhqY8LNvFMg9+fUBEBADrXAABd
 CqVVsrkIADwAAAA8AAAAkLEcg52RABnRLXM5CABFAAAoAABAAEAGDiEKCgxqCgoMMmGp84NMg9+f
 jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
 
-  "structured" should "simple extract" in {
+  val packet = uint8 ~ uint(8) ~ variableSizeBytes(uint16, bytes)
+  val transaction = packet ~ packet
+  val decoder = vector(transaction)
+
+  "structured" should "atomic extract" in {
     implicit val system = ActorSystem("Sys")
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
-
-    val packet = uint8 ~ uint(8) ~ variableSizeBytes(uint16, bytes)
-    val decoder = vector(packet ~ packet)
 
     Source.single(captured)
       .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
@@ -72,7 +76,6 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
         val r = t.get._2
         t.get._1.toString should be("Key(25001,62339,10.10.12.106,10.10.12.50)")
         r.size should be(4)
-        import scodec.bits._
 
         r(0) should be((((5, 1), hex"0000258000080100"), ((10, 1), hex"0d2a")))
 
@@ -80,6 +83,30 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
 
     system.awaitTermination()
   }
+
+  it should "stream packets" in {
+    implicit val system = ActorSystem("Sys")
+    import system.dispatcher
+    implicit val materializer = ActorMaterializer()
+
+    val f = Source.single(captured)
+      .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
+      .collect { case data: pcap.data.v4.TCP if !data.bytes.isEmpty => data }
+      .groupBy(_.stream)
+      .map { r => r._2.map { tcp => (r._1, packet.decodeValue(tcp.bytes.bits).require) } }
+      .flatten(FlattenStrategy.concat)
+      .runWith(Sink.fold(List[(StreamKey, ((Int, Int), ByteVector))]())((l, v) => l :+ v))
+      .onComplete { t =>
+        system.shutdown
+        val r = t.get
+        r.size should be(8)
+        r(0)._2 should be(((5, 1), hex"0000258000080100"))
+        r(1)._2 should be(((10, 1), hex"0d2a"))
+      }
+
+    system.awaitTermination()
+  }
+
   //Vector(((5,1),ByteVector(8 bytes, 0x0000258000080100)), ((10,1),ByteVector(2 bytes, 0x0d2a)), ((2,2),ByteVector(empty)), ((15,2),ByteVector(empty)), ((6,3),ByteVector(4 bytes, 0x006407d0)), ((1,3),ByteVector(17 bytes, 0x666c7573682072783d3130303a32303030)), ((11,4),ByteVector(empty)), ((15,4),ByteVector(empty)))
 
 }
