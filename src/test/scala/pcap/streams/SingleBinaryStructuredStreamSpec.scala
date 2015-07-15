@@ -49,31 +49,33 @@ AAAAGdEtczmQsRyDnZEIAEUAACh420AAgAZVRQoKDDIKCgxq84NhqY8LNvFMg9+fUBEBADrXAABd
 CqVVsrkIADwAAAA8AAAAkLEcg52RABnRLXM5CABFAAAoAABAAEAGDiEKCgxqCgoMMmGp84NMg9+f
 jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
 
-  "structured" should "extract" in {
+  "structured" should "simple extract" in {
     implicit val system = ActorSystem("Sys")
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
 
-    val decoder = vector(uint8 ~ uint(8) ~ variableSizeBytes(uint16, bytes))
+    val packet = uint8 ~ uint(8) ~ variableSizeBytes(uint16, bytes)
+    val decoder = vector(packet ~ packet)
 
     Source.single(captured)
       .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
       .collect { case data: pcap.data.v4.TCP => data }
       .groupBy(_.stream)
       .map {
-        case (key, s) => s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes }
+        case (key, s) => (key, s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes })
       }
-      .map { _.map { bv => decoder.decodeValue(bv.bits).require } }
+      .map { r => r._2.map { bv => (r._1, decoder.decodeValue(bv.bits).require) } }
       .mapAsyncUnordered(1)(identity)
       .runWith(Sink.head)
       .onComplete { t =>
         system.shutdown
-        val r = t.get
-        r.size should be(8)
+        val r = t.get._2
+        t.get._1.toString should be("Key(25001,62339,10.10.12.106,10.10.12.50)")
+        r.size should be(4)
         import scodec.bits._
 
-        r(0) should be(((5, 1), hex"0000258000080100"))
-        r(1) should be(((10, 1), hex"0d2a"))
+        r(0) should be((((5, 1), hex"0000258000080100"), ((10, 1), hex"0d2a")))
+
       }
 
     system.awaitTermination()
