@@ -3,9 +3,9 @@ package pcap.streams
 import java.io.File
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.io.SynchronousFileSource
-import pcap.codec.Codecs.Wrapper
+import pcap.codec.Codecs.WithHeaderDecoder
 import pcap.data.Data
+import akka.stream.scaladsl.Source
 
 
 /**
@@ -16,8 +16,8 @@ object Streamer extends App {
   import system.dispatcher
   implicit val materializer = ActorMaterializer()
 
-  val f = SynchronousFileSource(new File("/tmp/dump.pcap"))
-    .transform(() => DecoderStage(new Wrapper))
+  val f = Source.file(new File("/tmp/dump.pcap"))
+    .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
     .filter(_ match {
       case data: Data if !data.bytes.isEmpty => true
       case _                                 => false

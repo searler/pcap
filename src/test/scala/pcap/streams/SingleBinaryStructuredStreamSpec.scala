@@ -9,7 +9,7 @@ import scodec.bits.ByteVector
 import akka.util.ByteString
 import akka.stream.scaladsl.Source
 import scala.collection.immutable.Seq
-import akka.stream.io.SynchronousFileSource
+
 import java.io.File
 import akka.stream.scaladsl.Sink
 import akka.stream.Materializer
@@ -17,7 +17,7 @@ import scala.concurrent.ExecutionContext
 import scodec.protocols.ip.Port
 import scodec.codecs._
 import scodec.Decoder
-import akka.stream.scaladsl.FlattenStrategy
+
 import pcap.data.StreamKey
 import scodec.bits._
 
@@ -94,7 +94,7 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
       .collect { case data: pcap.data.v4.TCP if !data.bytes.isEmpty => data }
       .groupBy(_.stream)
       .map { r => r._2.map { tcp => (r._1, packet.decodeValue(tcp.bytes.bits).require) } }
-      .flatten(FlattenStrategy.concat)
+      .flatMapConcat(identity)
       .runWith(Sink.fold(List[(StreamKey, ((Int, Int), ByteVector))]())((l, v) => l :+ v))
       .onComplete { t =>
         system.shutdown

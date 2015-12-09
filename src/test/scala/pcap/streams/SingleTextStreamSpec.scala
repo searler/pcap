@@ -9,7 +9,6 @@ import scodec.bits.ByteVector
 import akka.util.ByteString
 import akka.stream.scaladsl.Source
 import scala.collection.immutable.Seq
-import akka.stream.io.SynchronousFileSource
 import java.io.File
 import akka.stream.scaladsl.Sink
 import akka.stream.Materializer
