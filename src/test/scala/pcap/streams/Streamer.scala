@@ -19,10 +19,7 @@ object Streamer extends App {
 
   val f = Source.file(new File("/tmp/dump.pcap"))
     .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
-    .filter(_ match {
-      case data: Data if !data.bytes.isEmpty => true
-      case _                                 => false
-    })
+    .collect{case data: Data if !data.bytes.isEmpty => data}
     .runForeach { println }
     .onComplete { case _ => system.shutdown }
 
