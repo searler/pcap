@@ -3,6 +3,7 @@ package pcap.streams
 import java.io.File
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import akka.stream.io._
 import pcap.codec.Codecs.WithHeaderDecoder
 import pcap.data.Data
 import akka.stream.scaladsl.Source
