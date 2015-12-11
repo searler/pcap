@@ -18,7 +18,6 @@ class MalformedSpec extends FlatSpec with Matchers {
     val base64 = """1MOyoQIABAAAAAAAAAAAAP//AAABAAAAPl6hVQvgDAA8AAAAPAAAAP///////wAhQwjkUwgARQAAKEPjAABAEd9lqf4Bgan+Af/a/hOIABSGXENNRAAAAAAbqf4B/wAAAAAAAD9eoVX52QYAPAAAADwAAAABgMIAAAAAH5AHOpIAJkJCAwAAAAAAkAAADlgwS+AAAAA3kAAADlgwS+CAAgIABgABAAQAc2VyYwAAAAA="""
 
     val bv = BitVector.fromBase64(base64).get
-    println(bv)
 
     val full: Decoder[(Content, Content)] = for {
       gh <- GlobalHeader.codec
