@@ -13,6 +13,6 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
-
+scalacOptions += "-deprecation"
 
 fork in run := true
