@@ -10,6 +10,8 @@ import scala.annotation.tailrec
 import scodec.Attempt.Successful
 import scodec.DecodeResult
 import scodec.bits.ByteVector
+import akka.stream.stage.PushPullStage
+import akka.stream.stage.TerminationDirective
 
 /**
  * @author rsearle
@@ -28,25 +30,46 @@ object ByteVectorDecoderStage extends DecoderStage[ByteVector] {
 
 trait DecoderStage[T] {
   def apply[R](decoder: Decoder[R]) =
-    new StatefulStage[T, R] {
+    new PushPullStage[T, R] {
       private var bitBuffer = BitVector.empty
+      private var elements = Vector[R]()
 
-      def initial = new State {
-        override def onPush(chunk: T, ctx: Context[R]): SyncDirective = {
+      override def onPush(chunk: T, ctx: Context[R]): SyncDirective = {
+        if (elements.isEmpty) {
           toBitVectors(chunk).foreach(bb => bitBuffer = bitBuffer ++ bb)
-          val elements = doParsing(Vector.empty)
-          emit(elements.iterator, ctx)
+          elements = doParsing(elements)
+        }
+        onPull(ctx)
+      }
+
+      override def onPull(ctx: Context[R]): SyncDirective =
+        if(ctx.isFinishing)
+           elements match {
+            case head +: tail =>
+              elements = tail
+              if(tail.isEmpty)ctx.pushAndFinish(head)else ctx.push(head)
+            case _ => ctx.finish
+          }else
+          elements match {
+            case head +: tail =>
+              elements = tail
+              ctx.push(head)
+            case _ => ctx.pull
+          }
+      
+       override def onUpstreamFinish(ctx: Context[R]): TerminationDirective =
+      ctx.absorbTermination()
+  
+
+      @tailrec
+      private def doParsing(parsedSoFar: Vector[R]): Vector[R] =
+        decoder.decode(bitBuffer) match {
+          case Successful(DecodeResult(value, remainder)) =>
+            bitBuffer = remainder
+            doParsing(parsedSoFar :+ value)
+          case _ => parsedSoFar
         }
 
-        @tailrec
-        private def doParsing(parsedSoFar: Vector[R]): Vector[R] =
-          decoder.decode(bitBuffer) match {
-            case Successful(DecodeResult(value, remainder)) =>
-              bitBuffer = remainder
-              doParsing(parsedSoFar :+ value)
-            case _ => parsedSoFar
-          }
-      }
     }
 
   def toBitVectors(chunk: T): Iterable[BitVector]
