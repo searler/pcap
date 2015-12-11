@@ -15,12 +15,10 @@ import pcap.data._
 class MalformedSpec extends FlatSpec with Matchers {
 
   "malformed UDP record" should "not crash parsing" in {
-    val base64 = """1MOyoQIABAAAAAAAAAAAAP//AAABAAAAPl6hVQvgDAA8AAAAPAAAAP///////wAhQwjkUwgARQAA
-KEPjAABAEd9lqf4Bgan+Af/a/hOIABSGXENNRAAAAAAbqf4B/wAAAAAAAD9eoVX52QYAPAAAADwA
-AAABgMIAAAAAH5AHOpIAJkJCAwAAAAAAkAAADlgwS+AAAAA3kAAADlgwS+CAAgIABgABAAQAc2Vy
-YwAAAAA="""
+    val base64 = """1MOyoQIABAAAAAAAAAAAAP//AAABAAAAPl6hVQvgDAA8AAAAPAAAAP///////wAhQwjkUwgARQAAKEPjAABAEd9lqf4Bgan+Af/a/hOIABSGXENNRAAAAAAbqf4B/wAAAAAAAD9eoVX52QYAPAAAADwAAAABgMIAAAAAH5AHOpIAJkJCAwAAAAAAkAAADlgwS+AAAAA3kAAADlgwS+CAAgIABgABAAQAc2VyYwAAAAA="""
 
     val bv = BitVector.fromBase64(base64).get
+    println(bv)
 
     val full: Decoder[(Content, Content)] = for {
       gh <- GlobalHeader.codec
