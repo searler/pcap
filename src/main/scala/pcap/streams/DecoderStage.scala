@@ -1,7 +1,7 @@
 package pcap.streams
 
 import scodec.Decoder
-import akka.stream.stage.StatefulStage
+
 import scodec.bits.BitVector
 import akka.util.ByteString
 import akka.stream.stage.SyncDirective

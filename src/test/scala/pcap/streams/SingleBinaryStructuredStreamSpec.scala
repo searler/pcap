@@ -56,7 +56,7 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
   val transaction = packet ~ packet
   val decoder = vector(transaction)
 
-  "structured" should "atomic extract" in {
+ "structured" should "atomic extract" in {
     implicit val system = ActorSystem("Sys")
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
@@ -64,21 +64,18 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
     Source.single(captured)
       .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
       .collect { case data: pcap.data.v4.TCP => data }
-      .groupBy(_.stream)
-      .map {
-        case (key, s) => (key, s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes })
-      }
-      .map { r => r._2.map { bv => (r._1, decoder.decodeValue(bv.bits).require) } }
-      .mapAsyncUnordered(1)(identity)
+      .groupBy(2,_.stream)
+      .fold((pcap.data.v4.nullTCP,ByteVector.empty))((pair,t) => (t,pair._2 ++ t.bytes))
+      .map { r => (r._1.stream, decoder.decodeValue(r._2.bits).require) } 
+       .mergeSubstreams
       .runWith(Sink.head)
       .onComplete { t =>
-        system.shutdown
         val r = t.get._2
         t.get._1.toString should be("Key(25001,62339,10.10.12.106,10.10.12.50)")
         r.size should be(4)
 
         r(0) should be((((5, 1), hex"0000258000080100"), ((10, 1), hex"0d2a")))
-
+        system.shutdown
       }
 
     system.awaitTermination()
@@ -92,9 +89,9 @@ jws28lAQAC47qQAAAAAAAAAA""").get.toByteBuffer)
     val f = Source.single(captured)
       .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
       .collect { case data: pcap.data.v4.TCP if !data.bytes.isEmpty => data }
-      .groupBy(_.stream)
-      .map { r => r._2.map { tcp => (r._1, packet.decodeValue(tcp.bytes.bits).require) } }
-      .flatMapConcat(identity)
+      .groupBy(2,_.stream)
+      .map { r => (r.stream, packet.decodeValue(r.bytes.bits).require) } 
+       .mergeSubstreams
       .runWith(Sink.fold(List[(StreamKey, ((Int, Int), ByteVector))]())((l, v) => l :+ v))
       .onComplete { t =>
         system.shutdown

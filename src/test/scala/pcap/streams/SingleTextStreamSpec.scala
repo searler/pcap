@@ -60,50 +60,39 @@ T+SCFIAQAVYAKAAAAQEICgpZcIwKWXCM""").get.toByteBuffer)
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
 
-    extractMerged
+    val m=  extractMerged
       .runWith(Sink.head)
-      .onComplete(t1 => t1.get.onComplete { v =>
-        v.get._2 should be("hello\nthere\none\ntwo\nend\ndone\n")
+      
+      m.onComplete{ v =>
+        val r =  v.get
+       r._1.sourcePort.value should be(44935)
+       r._2 should be("hello\nthere\none\ntwo\nend\ndone\n")
         system.shutdown()
-      })
+    }
 
     system.awaitTermination()
   }
 
-  it should "using mapAsync merged" in {
-    implicit val system = ActorSystem("Sys")
-    import system.dispatcher
-    implicit val materializer = ActorMaterializer()
 
-    extractMerged
-      .mapAsyncUnordered(1)(identity)
-      .runWith(Sink.head)
-      .onComplete { t =>
-        t.get._2 should be("hello\nthere\none\ntwo\nend\ndone\n")
-        system.shutdown
-      }
 
-    system.awaitTermination()
-  }
 
-  it should "using mapAsync separate" in {
+  it should "using separate ??" in {
     implicit val system = ActorSystem("Sys")
     import system.dispatcher
     implicit val materializer = ActorMaterializer()
 
     extractSeperate
-      .mapAsyncUnordered(1)(identity)
-      .runWith(Sink.fold(List[(Port, String)]())((l, v) => l :+ v))
+      .runWith(Sink.fold(List[(Port, String)]())((l, v) => l :+(v._1.sourcePort, v._2)))
       .onComplete { t =>
-        system.shutdown
         val value = (t.get).sortBy { _._1.value }
         value should be(List(
           (Port(9999), "there\ntwo\ndone\n"),
           (Port(44935), "hello\none\nend\n")))
+          system.shutdown
       }
 
     system.awaitTermination()
-  }
+  } 
 
   private def extractMerged(implicit materializer: Materializer,
                             execution: ExecutionContext) = extract(_.stream)
@@ -116,10 +105,10 @@ T+SCFIAQAVYAKAAAAQEICgpZcIwKWXCM""").get.toByteBuffer)
     Source.single(bytes)
       .transform(() => ByteStringDecoderStage(new WithHeaderDecoder))
       .collect { case data: pcap.data.v6.TCP => data }
-      .groupBy(f)
-      .map {
-        case (key, s) => (key, s.runFold(ByteVector.empty) { (bv, t) => bv ++ t.bytes })
-      }
-      .map { r => r._2.map { bv => (r._1, bv.decodeUtf8.fold(_.toString, identity)) } }
+      .groupBy(2,f)
+     .fold((pcap.data.v6.nullTCP,ByteVector.empty))((pair,t) => (t,pair._2 ++ t.bytes))
+      .map(pair => (pair._1, pair._2.decodeUtf8.fold(_.toString, identity)))
+      .mergeSubstreams
+ 
 
 }

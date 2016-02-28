@@ -35,5 +35,7 @@ package object v4 {
                          portB: ip.Port,
                          ipA: ip.v4.Address,
                          ipB: ip.v4.Address) extends StreamKey
+                         
+   val nullTCP = TCP(null,null,null,null,null,0,null)                      
 
 }
